@@ -1,6 +1,6 @@
-name:                trial-bot
+name:                trial-bot-all
 version:             0.1.0.0
-github:              "githubuser/trial-bot"
+github:              "githubuser/trial-bot-all"
 license:             BSD3
 author:              "Author name here"
 maintainer:          "example@example.com"
@@ -17,7 +17,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/trial-bot#readme>
+description:         Please see the README on GitHub at <https://github.com/githubuser/trial-bot-all#readme>
 
 dependencies:
 - base == 4.13.0.0
@@ -25,6 +25,8 @@ dependencies:
 - aeson == 1.4.7.1
 - text == 1.2.4.0
 - hslogger == 1.3.1.0
+- time == 1.9.3
+- bytestring == 0.10.10.0
 - containers == 0.6.2.1
 
 ghc-options:
@@ -35,22 +37,22 @@ library:
   source-dirs: src
 
 executables:
-  trial-bot-exe:
+  trial-bot-all-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - trial-bot
+    - trial-bot-all
 
 tests:
-  trial-bot-test:
+  trial-bot-all-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - trial-bot
+    - trial-bot-all
     - hspec == 2.7.1
