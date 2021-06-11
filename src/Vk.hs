@@ -2,7 +2,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module Vk
-  ( startBotWithLogger
+  ( startBot
   ) where
 
 import Control.Monad (replicateM_, void)
@@ -14,17 +14,8 @@ import Data.Text.Read (decimal)
 import Data.Time.Clock.System (getSystemTime)
 import Prelude hiding (drop, id)
 import System.Exit (exitFailure, exitSuccess)
-import System.Log.Logger
-  ( Priority(DEBUG, ERROR)
-  , debugM
-  , errorM
-  , infoM
-  , setLevel
-  , traplogging
-  , updateGlobalLogger
-  )
 
-import qualified Vk.Logger as L
+import qualified Logger as L
 import Vk.Requests
 import Vk.Requests.JSON
 import Vk.Types
@@ -125,18 +116,3 @@ startBot loggerH args =
   case processArgs args of
     Right config -> void $ cycleProcessing loggerH config >> exitSuccess
     Left errorMessage -> L.hError loggerH errorMessage >> exitFailure
-
-startBotWithLogger :: [String] -> IO ()
-startBotWithLogger args = do
-  L.withLogger
-    (L.Config
-                -- use INFO, DEBUG or ERROR here
-                -- (add to System.Log.Logger import items if missed)
-       DEBUG
-       (traplogging "trial-bot-vk" ERROR "Unhandled exception occured" .
-        updateGlobalLogger "trial-bot-vk" . setLevel)
-       (debugM "trial-bot-vk")
-       (infoM "trial-bot-vk")
-       (errorM "trial-bot-vk"))
-    (\loggerH -> startBot loggerH args)
-  pure ()

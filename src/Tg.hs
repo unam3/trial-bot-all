@@ -5,7 +5,7 @@ module Tg
   ( getInt
   , getLatestSupportedUpdateContent
   , processArgs
-  , startBotWithLogger
+  , startBot
   ) where
 
 import Control.Monad (replicateM_, void)
@@ -16,17 +16,8 @@ import Data.Text (Text, append, pack)
 import Data.Text.Read (decimal)
 import Prelude hiding (id)
 import System.Exit (exitFailure, exitSuccess)
-import System.Log.Logger
-  ( Priority(DEBUG, ERROR)
-  , debugM
-  , errorM
-  , infoM
-  , setLevel
-  , traplogging
-  , updateGlobalLogger
-  )
 
-import qualified Tg.Logger as L
+import qualified Logger as L
 import Tg.Requests
 import Tg.Requests.JSON
 import Tg.Types
@@ -145,18 +136,3 @@ startBot loggerH args =
       L.hInfo loggerH "Bot is up and running." >> cycleEcho loggerH config >>
       exitSuccess
     Left errorMessage -> L.hError loggerH errorMessage >> exitFailure
-
-startBotWithLogger :: [String] -> IO ()
-startBotWithLogger args = do
-  L.withLogger
-    (L.Config
-                -- use INFO, DEBUG or ERROR here
-                -- (add to System.Log.Logger import items if missed)
-       DEBUG
-       (traplogging "trial-bot" ERROR "Unhandled exception occured" .
-        updateGlobalLogger "trial-bot" . setLevel)
-       (debugM "trial-bot")
-       (infoM "trial-bot")
-       (errorM "trial-bot"))
-    (\loggerH -> startBot loggerH args)
-  pure ()

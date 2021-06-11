@@ -1,4 +1,4 @@
-module Vk.Logger
+module Logger
   ( Config(..)
   , Handle(..)
   , withLogger
