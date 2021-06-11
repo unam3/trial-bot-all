@@ -28,6 +28,8 @@ dependencies:
 - time == 1.9.3
 - bytestring == 0.10.10.0
 - containers == 0.6.2.1
+- config-ini == 0.2.4.0
+
 
 ghc-options:
 - -Wall
