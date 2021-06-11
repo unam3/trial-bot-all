@@ -1,6 +1,7 @@
 module Main where
 
 import Data.Either
+import Data.Maybe (fromJust)
 import System.Log.Logger
   ( Priority(DEBUG, ERROR)
   , debugM
@@ -31,6 +32,6 @@ main =
     (\ loggerH -> -- startBot loggerH args)
         Config.parseConfig
             >>= \ eitherConfig -> case eitherConfig of
-                Left error -> L.hError loggerH error
-                Right config -> print "l"
+                Left errorMessage -> L.hError loggerH errorMessage
+                Right config -> Tg.startBot loggerH . fromJust $ Config.c_tg config
         )

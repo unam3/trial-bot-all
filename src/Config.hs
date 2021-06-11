@@ -8,6 +8,7 @@ module Config
   ) where
 
 import Data.Ini.Config
+import Data.Text (Text)
 import qualified Data.Text.IO as T
 
 
@@ -20,17 +21,17 @@ data Config = Config {
 data WhatToRun = Tg | Vk deriving (Eq, Show)
 
 data TgConfig = TgConfig {
-    tg_token :: String,
-    tg_helpMsg :: String,
-    tg_repeatMsg :: String,
+    tg_token :: Text,
+    tg_helpMsg :: Text,
+    tg_repeatMsg :: Text,
     tg_echoRepeatNumber :: Int
 } deriving (Eq, Show)
 
 data VkConfig = VkConfig {
-    vk_token :: String,
-    vk_groupId :: String,
-    vk_helpMsg :: String,
-    vk_repeatMsg :: String,
+    vk_token :: Text,
+    vk_groupId :: Text,
+    vk_helpMsg :: Text,
+    vk_repeatMsg :: Text,
     vk_echoRepeatNumber :: Int
 } deriving (Eq, Show)
 
@@ -41,9 +42,9 @@ configParser = do
     return $ (if run == "tg" then Tg else Vk)
 
   tg <- sectionMb "Telegram" $ do
-    token <- fieldOf "token" string
-    helpMsg <- fieldOf "helpMsg" string
-    repeatMsg <- fieldOf "repeatMsg" string
+    token <- field "token"
+    helpMsg <- field "helpMsg"
+    repeatMsg <- field "repeatMsg"
     echoRepeatNumber <- fieldOf "echoRepeatNumber" number
     return $ TgConfig
         token
@@ -51,10 +52,10 @@ configParser = do
         repeatMsg
         echoRepeatNumber
   vk <- sectionMb "Vkontakte" $ do
-    token <- fieldOf "token" string
-    groupId <- fieldOf "groupId" string
-    helpMsg <- fieldOf "helpMsg" string
-    repeatMsg <- fieldOf "repeatMsg" string
+    token <- field "token"
+    groupId <- field "groupId"
+    helpMsg <- field "helpMsg"
+    repeatMsg <- field "repeatMsg"
     echoRepeatNumber <- fieldOf "echoRepeatNumber" number
     return $ VkConfig
         token
