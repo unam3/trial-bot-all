@@ -13,7 +13,6 @@ import Data.Either (fromRight)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromJust, isJust)
 import Data.Text (Text, append, pack)
-import qualified Data.Text as T
 import Data.Text.Read (decimal)
 import Prelude hiding (id)
 import System.Exit (exitFailure, exitSuccess)
@@ -109,16 +108,17 @@ cycleEcho loggerH config =
    in cycleEcho' loggerH config noRJSON
 
 processArgs :: TgConfig -> Either String Config
-processArgs (TgConfig tg_token tg_helpMsg tg_repeatMsg tg_echoRepeatNumber) =
+processArgs (TgConfig token helpMsg repeatMsg echoRepeatNumber) =
   let isInRange n = n > 0 && n < 6
-   in if not $ isInRange tg_echoRepeatNumber
-        then Left "Number of message repeats must be 1, 2, 3, 4 or 5."
+   in if not $ isInRange echoRepeatNumber
+        then Left
+               "Number of message repeats (echoRepeatNumber) must be 1, 2, 3, 4 or 5."
         else Right
                Config
-                 { tokenSection = append "bot" tg_token
-                 , helpMessage = tg_helpMsg
-                 , repeatMessage = tg_repeatMsg
-                 , numberOfRepeats = pack $ show tg_echoRepeatNumber
+                 { tokenSection = append "bot" token
+                 , helpMessage = helpMsg
+                 , repeatMessage = repeatMsg
+                 , numberOfRepeats = pack $ show echoRepeatNumber
                  , numberOfRepeatsMap = M.empty
                  }
 
@@ -126,6 +126,7 @@ startBot :: L.Handle () -> TgConfig -> IO ()
 startBot loggerH parsedConfig =
   case processArgs parsedConfig of
     Right config ->
-      L.hInfo loggerH "Bot is up and running." >> cycleEcho loggerH config >>
+      L.hInfo loggerH "Telegram bot is up and running." >>
+      cycleEcho loggerH config >>
       exitSuccess
     Left errorMessage -> L.hError loggerH errorMessage >> exitFailure

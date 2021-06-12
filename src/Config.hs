@@ -4,6 +4,7 @@ module Config
   ( Config (..),
   TgConfig (..),
   VkConfig (..),
+  WhatToRun (..),
   parseConfig
   ) where
 

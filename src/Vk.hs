@@ -5,7 +5,7 @@ module Vk
   ( startBot
   ) where
 
-import Control.Monad (replicateM_, void)
+import Control.Monad (replicateM_)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromJust, isJust)
@@ -15,6 +15,7 @@ import Data.Time.Clock.System (getSystemTime)
 import Prelude hiding (drop, id)
 import System.Exit (exitFailure, exitSuccess)
 
+import Config (VkConfig(..))
 import qualified Logger as L
 import Vk.Requests
 import Vk.Requests.JSON
@@ -84,35 +85,29 @@ cycleProcessing' loggerH config serverInfo =
 
 cycleProcessing :: L.Handle () -> Config -> IO LPResponse
 cycleProcessing loggerH config =
-  L.hInfo loggerH "Bot is up and running." >> getLongPollServerInfo config >>= \serverInfo ->
+  getLongPollServerInfo config >>= \serverInfo ->
     L.hDebug loggerH (show serverInfo) >>
     cycleProcessing' loggerH config serverInfo
 
-processArgs :: [String] -> Either String Config
-processArgs [token, groupId, helpMsg, repeatMsg, echoRepeatNumberStr] =
-  let echoRepeatNumber = (read echoRepeatNumberStr :: Int)
-      isInRange n = n > 0 && n < 6
-   in if or
-           [ null token
-           , null groupId
-           , null helpMsg
-           , null repeatMsg
-           , not $ isInRange echoRepeatNumber
-           ]
-        then Left "Some argument passed from command line is wrong."
+processArgs :: VkConfig -> Either String Config
+processArgs (VkConfig token groupId helpMsg repeatMsg echoRepeatNumber) =
+  let isInRange n = n > 0 && n < 6
+   in if not $ isInRange echoRepeatNumber
+        then Left
+               "Number of message repeats (echoRepeatNumber) must be 1, 2, 3, 4 or 5."
         else Right
-               ( pack token
-               , pack groupId
-               , pack helpMsg
-               , pack repeatMsg
-               , pack echoRepeatNumberStr
+               ( token
+               , groupId
+               , helpMsg
+               , repeatMsg
+               , pack $ show echoRepeatNumber
                , M.empty)
-processArgs _ =
-  Left
-    "Exactly five arguments needed: access token, group id, helpMsg, repeatMsg, echoRepeatNumber."
 
-startBot :: L.Handle () -> [String] -> IO ()
-startBot loggerH args =
-  case processArgs args of
-    Right config -> void $ cycleProcessing loggerH config >> exitSuccess
+startBot :: L.Handle () -> VkConfig -> IO ()
+startBot loggerH parsedConfig =
+  case processArgs parsedConfig of
+    Right config ->
+      L.hInfo loggerH "Vkontakte bot is up and running." >>
+      cycleProcessing loggerH config >>
+      exitSuccess
     Left errorMessage -> L.hError loggerH errorMessage >> exitFailure
