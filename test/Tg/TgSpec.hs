@@ -17,24 +17,23 @@ spec = do
   describe "processConfig" $ do
     it "returns config" $
       shouldSatisfy
-        (processConfig
-            $ TgConfig
-               "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-               "help msg"
-               "repeat msg"
-               1
-           )
+        (processConfig $
+         TgConfig
+           "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+           "help msg"
+           "repeat msg"
+           1)
         isRight
     it "returns error if wrong number of repeats" $
       shouldBe
-        (processConfig
-            $ TgConfig
-               "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-               "help msg"
-               "repeat msg"
-               0
-           )
-        (Left "Number of message repeats (echoRepeatNumber) must be 1, 2, 3, 4 or 5.")
+        (processConfig $
+         TgConfig
+           "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+           "help msg"
+           "repeat msg"
+           0)
+        (Left
+           "Number of message repeats (echoRepeatNumber) must be 1, 2, 3, 4 or 5.")
   describe "getInt" . it "returns Int" $
     getInt ("5" :: Text) `shouldBe` (5 :: Int)
   describe "getLatestSupportedUpdateContent" $ do
