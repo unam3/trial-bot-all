@@ -26,7 +26,7 @@ Use control and "c" keys to stop the bot.
 
 [Vk] Only messages that was received when bot is up and running will be processed.
 
-[VK] Keyboard in the answer to `/repeat` command will be accessible to all chat participants (VK limitation) and will be applied for the first one who use it.
+[Vk] Keyboard in the answer to `/repeat` command will be accessible to all chat participants (VK limitation) and will be applied for the first one who use it.
 
 Number of message repeats for all chats of the participant is the same.
 

@@ -27,7 +27,7 @@ main =
        (debugM "trial-bot-all")
        (infoM "trial-bot-all")
        (errorM "trial-bot-all"))
-    (\ loggerH -> -- startBot loggerH args)
+    (\ loggerH ->
         Config.parseConfig
             >>= \ eitherConfig -> case eitherConfig of
                 Left errorMessage -> L.hError loggerH errorMessage
