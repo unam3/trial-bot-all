@@ -9,15 +9,15 @@ import Prelude hiding (id)
 import Test.Hspec
 
 import Config (TgConfig(..))
-import Tg (getInt, getLatestSupportedUpdateContent, processArgs)
+import Tg (getInt, getLatestSupportedUpdateContent, processConfig)
 import Tg.Requests.JSON
 
 spec :: Spec
 spec = do
-  describe "processArgs" $ do
+  describe "processConfig" $ do
     it "returns config" $
       shouldSatisfy
-        (processArgs
+        (processConfig
             $ TgConfig
                "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
                "help msg"
@@ -27,7 +27,7 @@ spec = do
         isRight
     it "returns error if wrong number of repeats" $
       shouldBe
-        (processArgs
+        (processConfig
             $ TgConfig
                "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
                "help msg"

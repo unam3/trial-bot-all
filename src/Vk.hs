@@ -89,8 +89,8 @@ cycleProcessing loggerH config =
     L.hDebug loggerH (show serverInfo) >>
     cycleProcessing' loggerH config serverInfo
 
-processArgs :: VkConfig -> Either String Config
-processArgs (VkConfig token groupId helpMsg repeatMsg echoRepeatNumber) =
+processConfig :: VkConfig -> Either String Config
+processConfig (VkConfig token groupId helpMsg repeatMsg echoRepeatNumber) =
   let isInRange n = n > 0 && n < 6
    in if not $ isInRange echoRepeatNumber
         then Left
@@ -105,7 +105,7 @@ processArgs (VkConfig token groupId helpMsg repeatMsg echoRepeatNumber) =
 
 startBot :: L.Handle () -> VkConfig -> IO ()
 startBot loggerH parsedConfig =
-  case processArgs parsedConfig of
+  case processConfig parsedConfig of
     Right config ->
       L.hInfo loggerH "Vkontakte bot is up and running." >>
       cycleProcessing loggerH config >>

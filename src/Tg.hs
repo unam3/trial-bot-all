@@ -4,7 +4,7 @@
 module Tg
   ( getInt
   , getLatestSupportedUpdateContent
-  , processArgs
+  , processConfig
   , startBot
   ) where
 
@@ -107,8 +107,8 @@ cycleEcho loggerH config =
   let noRJSON = Nothing
    in cycleEcho' loggerH config noRJSON
 
-processArgs :: TgConfig -> Either String Config
-processArgs (TgConfig token helpMsg repeatMsg echoRepeatNumber) =
+processConfig :: TgConfig -> Either String Config
+processConfig (TgConfig token helpMsg repeatMsg echoRepeatNumber) =
   let isInRange n = n > 0 && n < 6
    in if not $ isInRange echoRepeatNumber
         then Left
@@ -124,7 +124,7 @@ processArgs (TgConfig token helpMsg repeatMsg echoRepeatNumber) =
 
 startBot :: L.Handle () -> TgConfig -> IO ()
 startBot loggerH parsedConfig =
-  case processArgs parsedConfig of
+  case processConfig parsedConfig of
     Right config ->
       L.hInfo loggerH "Telegram bot is up and running." >>
       cycleEcho loggerH config >>
