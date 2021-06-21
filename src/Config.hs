@@ -40,7 +40,7 @@ configParser :: IniParser Config
 configParser = do
   run <- section "WhatToRun" $ do
     run <- fieldOf "run" string
-    return $ (if run == "tg" then Tg else Vk)
+    return $ (if run == ("tg" :: String) then Tg else Vk)
 
   tg <- sectionMb "Telegram" $ do
     token <- field "token"
