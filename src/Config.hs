@@ -50,7 +50,7 @@ configParser = do
     section "WhatToRun" $ do
       run <- fieldOf "run" string
       return $
-        (if run == "tg"
+        (if run == ("tg" :: String)
            then Tg
            else Vk)
   tg <-
