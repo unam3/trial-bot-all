@@ -62,6 +62,8 @@ processUpdates loggerH config updates' =
         , repeatMsg
         , echoRepeatNumberText
         , newNumberOfRepeatsMap)
+
+    
    in if null newMessages || isMsgHasNoText
         then return config
         else if isJust maybeNewEchoRepeatNumberText
@@ -74,20 +76,31 @@ processUpdates loggerH config updates' =
                       msgText >>
                     return config
 
-cycleProcessing' :: L.Handle () -> Config -> LPServerInfo -> IO LPResponse
-cycleProcessing' loggerH config serverInfo =
-  getLongPoll serverInfo >>= \lp ->
-    L.hDebug loggerH (show lp) >> processUpdates loggerH config (updates lp) >>= \newConfig ->
-      cycleProcessing'
-        loggerH
-        newConfig
-        serverInfo {ts = (ts :: LPResponse -> Text) lp}
+cycleLPProcessing :: L.Handle () -> Config -> LPServerInfo -> IO LPResponse
+cycleLPProcessing loggerH config serverInfo =
+    getLongPoll serverInfo
+        >>= \lp -> L.hDebug loggerH (show lp)
+            -- https://vk.com/dev/bots_longpoll?f=2.2.%20%D0%9E%D1%88%D0%B8%D0%B1%D0%BA%D0%B8
+            >> case failed lp of
+                Just 1 -> cycleLPProcessing
+                    loggerH
+                    config
+                    serverInfo {ts = fromJust $ (ts :: LPResponse -> Maybe Text) lp}
+                -- 2 and 3
+                Just _ -> initLPProcessing
+                    loggerH
+                    config
+                Nothing -> processUpdates loggerH config (fromJust $ updates lp)
+                    >>= \newConfig -> cycleLPProcessing
+                        loggerH
+                        newConfig
+                        serverInfo {ts = fromJust $ (ts :: LPResponse -> Maybe Text) lp}
 
-cycleProcessing :: L.Handle () -> Config -> IO LPResponse
-cycleProcessing loggerH config =
-  getLongPollServerInfo config >>= \serverInfo ->
-    L.hDebug loggerH (show serverInfo) >>
-    cycleProcessing' loggerH config serverInfo
+initLPProcessing :: L.Handle () -> Config -> IO LPResponse
+initLPProcessing loggerH config =
+  getLongPollServerInfo config
+    >>= \serverInfo -> L.hDebug loggerH (show serverInfo)
+        >> cycleLPProcessing loggerH config serverInfo
 
 processConfig :: VkConfig -> Either String Config
 processConfig (VkConfig token groupId helpMsg repeatMsg echoRepeatNumber) =
@@ -108,6 +121,6 @@ startBot loggerH parsedConfig =
   case processConfig parsedConfig of
     Right config ->
       L.hInfo loggerH "Vkontakte bot is up and running." >>
-      cycleProcessing loggerH config >>
+      initLPProcessing loggerH config >>
       exitSuccess
     Left errorMessage -> L.hError loggerH errorMessage >> exitFailure

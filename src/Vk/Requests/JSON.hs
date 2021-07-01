@@ -70,8 +70,9 @@ instance FromJSON Update where
 
 data LPResponse =
   LPResponse
-    { ts :: Text
-    , updates :: [Update]
+    { ts :: Maybe Text
+    , updates :: Maybe [Update]
+    , failed :: Maybe Int
     }
   deriving (Show, Generic)
 
