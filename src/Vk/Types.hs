@@ -11,16 +11,17 @@ type HelpMessage = Text
 
 type RepeatMessage = Text
 
-type NumberOfRepeats = Text
+type DefaultNumberOfRepeatsText = Text
 
 type FromId = Int
 
-type NumberOfRepeatsMap = Map FromId NumberOfRepeats
+type NumberOfRepeatsMap = Map FromId DefaultNumberOfRepeatsText
 
 type Config
    = ( TokenSection
      , GroupId
      , HelpMessage
      , RepeatMessage
-     , NumberOfRepeats
-     , NumberOfRepeatsMap)
+     , DefaultNumberOfRepeatsText)
+
+type BotParams = (Config, NumberOfRepeatsMap)

@@ -20,17 +20,17 @@ makeRequest ::
   => Url scheme
   -> Option scheme
   -> m (JsonResponse a)
-makeRequest urlScheme params =
-  runReq defaultHttpConfig $ req GET urlScheme NoReqBody jsonResponse params
+makeRequest urlScheme botParams =
+  runReq defaultHttpConfig $ req GET urlScheme NoReqBody jsonResponse botParams
 
 getLongPollServerInfo :: Config -> IO LPServerInfo
-getLongPollServerInfo (tokenSection, groupId, _, _, _, _) =
+getLongPollServerInfo (tokenSection, groupId, _, _, _) =
   let urlScheme = https "api.vk.com" /: "method" /: "groups.getLongPollServer"
-      params =
+      botParams =
         "v" =: ("5.110" :: Text) <>
         "access_token" =: tokenSection <> "group_id" =: groupId
    in (response :: LPServerInfoResponse -> LPServerInfo) . responseBody <$>
-      makeRequest urlScheme params
+      makeRequest urlScheme botParams
 
 getLongPoll :: LPServerInfo -> IO LPResponse
 getLongPoll serverInfo
@@ -38,12 +38,12 @@ getLongPoll serverInfo
  =
   let (serverName, wh) = breakOn "/" $ drop 8 (server serverInfo)
       urlScheme = https serverName /: drop 1 wh
-      params =
+      botParams =
         "act" =: ("a_check" :: Text) <>
         "key" =: key serverInfo <>
         "ts" =: (ts :: LPServerInfo -> Text) serverInfo <>
         "wait" =: ("25" :: Text)
-   in responseBody <$> makeRequest urlScheme params
+   in responseBody <$> makeRequest urlScheme botParams
 
 getMessage :: Update -> PrivateMessage
 getMessage = (message :: Object -> PrivateMessage) . _object
@@ -79,9 +79,12 @@ keyboard =
           ]
       }
 
-sendMessage :: Config -> Update -> SystemTime -> IO SendMessageResponse
-sendMessage (tokenSection, _, helpMsg, repeatMsg, echoRepeatNumberText, _) update systemTime =
-  let incomingMessage = getMessage update
+sendMessage :: BotParams -> Update -> SystemTime -> IO SendMessageResponse
+-- TODO: include actual number of repeats into message
+--sendMessage (config, numberOfRepeatsMap) update systemTime = 
+sendMessage (config, _) update systemTime =
+  let (tokenSection, _, helpMsg, repeatMsg, defaultNumberOfRepeatsText) = config
+      incomingMessage = getMessage update
       urlScheme = https "api.vk.com" /: "method" /: "messages.send"
       msgText' = text incomingMessage
       msgText
@@ -89,20 +92,20 @@ sendMessage (tokenSection, _, helpMsg, repeatMsg, echoRepeatNumberText, _) updat
         | isMsgTextRepeatCommand msgText' =
           mconcat
             [ "Current number of repeats for you is "
-            , echoRepeatNumberText
+            , defaultNumberOfRepeatsText
             , ". "
             , repeatMsg
             ]
         | otherwise = msgText'
-      params' =
+      botParams' =
         "v" =: ("5.110" :: Text) <>
         "access_token" =: tokenSection <>
         "group_id" =: _group_id update <>
         "peer_id" =: peer_id incomingMessage <>
         "random_id" =: pack (show $ systemNanoseconds systemTime) <>
         "message" =: msgText
-      params =
+      botParams =
         if isMsgTextRepeatCommand msgText'
-          then params' <> "keyboard" =: keyboard
-          else params'
-   in responseBody <$> makeRequest urlScheme params
+          then botParams' <> "keyboard" =: keyboard
+          else botParams'
+   in responseBody <$> makeRequest urlScheme botParams
