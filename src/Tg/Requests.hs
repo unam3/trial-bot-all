@@ -45,32 +45,32 @@ getUpdates tokenSection' maybeOffset =
 isRepeatCommand :: Text -> Bool
 isRepeatCommand = (== "/repeat")
 
-commandOrText :: Config -> Username -> UserID -> Text -> Text
-commandOrText config _ _ "/help" = helpMessage config
-commandOrText config username userID "/repeat" =
+commandOrText :: BotParams -> Username -> UserID -> Text -> Text
+commandOrText botParams _ _ "/help" = helpMessage $ config botParams
+commandOrText botParams username userID "/repeat" =
   let echoRepeatNumber =
         findWithDefault
-          (numberOfRepeats config)
+          (defaultNumberOfRepeatsText $ config botParams)
           userID
-          (numberOfRepeatsMap config)
+          (numberOfRepeatsMap botParams)
    in mconcat
         [ "@"
         , username
         , " Current number of repeats is "
         , echoRepeatNumber
         , ". "
-        , repeatMessage config
+        , repeatMessage $ config botParams
         ]
 commandOrText _ _ _ t = t
 
 respondToMessage ::
-     Config -> ChatID -> Text -> Username -> UserID -> IO ResponseStatusJSON
-respondToMessage config chatID msg username userID =
+     BotParams -> ChatID -> Text -> Username -> UserID -> IO ResponseStatusJSON
+respondToMessage botParams chatID msg username userID =
   let apiMethod = "sendMessage"
-      urlScheme = https "api.telegram.org" /: tokenSection config /: apiMethod
+      urlScheme = https "api.telegram.org" /: (tokenSection $ config botParams) /: apiMethod
       request =
         EchoRequest
-          { text = commandOrText config username userID msg
+          { text = commandOrText botParams username userID msg
           , chat_id = chatID
           , reply_markup =
               if isRepeatCommand msg
