@@ -27,20 +27,21 @@ isMessageNew = (== "message_new") . (_type :: Update -> Text)
 getInt :: Text -> Int
 getInt = fst . fromRight (1, "1") . decimal
 
-sendAndLog :: L.Handle () -> Config -> Update -> IO ()
-sendAndLog loggerH config update =
-  getSystemTime >>= sendMessage config update >>= L.hDebug loggerH . show
+sendAndLog :: L.Handle () -> BotParams -> Update -> IO ()
+sendAndLog loggerH botParams update =
+  getSystemTime
+    >>= sendMessage botParams update
+        >>= L.hDebug loggerH . show
 
-responseToText :: L.Handle () -> Config -> Update -> Int -> Text -> IO ()
-responseToText loggerH config update echoRepeatNumber msgText =
+responseToText :: L.Handle () -> BotParams -> Update -> Int -> Text -> IO ()
+responseToText loggerH botParams update echoRepeatNumber msgText =
   if isMsgTextHelpCommand msgText || isMsgTextRepeatCommand msgText
-    then sendAndLog loggerH config update
-    else replicateM_ echoRepeatNumber $ sendAndLog loggerH config update
+    then sendAndLog loggerH botParams update
+    else replicateM_ echoRepeatNumber $ sendAndLog loggerH botParams update
 
-processUpdates :: L.Handle () -> Config -> [Update] -> IO Config
-processUpdates loggerH config updates' =
-  let (tokenSection, groupId, helpMsg, repeatMsg, echoRepeatNumberText, numberOfRepeatsMap) =
-        config
+processUpdates :: L.Handle () -> BotParams -> [Update] -> IO BotParams
+processUpdates loggerH botParams@(config, numberOfRepeatsMap) updates' =
+  let (_, _, _, _, defaultNumberOfRepeatsText) = config
       newMessages = filter isMessageNew updates'
       latestMessage = last newMessages
       msg = getMessage latestMessage
@@ -54,73 +55,71 @@ processUpdates loggerH config updates' =
           numberOfRepeatsMap
       echoRepeatNumber =
         getInt $
-        M.findWithDefault echoRepeatNumberText (from_id msg) numberOfRepeatsMap
-      newConfig =
-        ( tokenSection
-        , groupId
-        , helpMsg
-        , repeatMsg
-        , echoRepeatNumberText
+        M.findWithDefault defaultNumberOfRepeatsText (from_id msg) numberOfRepeatsMap
+      newBotParams =
+        ( config
         , newNumberOfRepeatsMap)
-
-    
    in if null newMessages || isMsgHasNoText
-        then return config
+        then return botParams
         else if isJust maybeNewEchoRepeatNumberText
-               then return newConfig
+               then return newBotParams
                else responseToText
                       loggerH
-                      config
+                      botParams
                       latestMessage
                       echoRepeatNumber
                       msgText >>
-                    return config
+                    return botParams
 
-cycleLPProcessing :: L.Handle () -> Config -> LPServerInfo -> IO LPResponse
-cycleLPProcessing loggerH config serverInfo =
+cycleLPProcessing :: L.Handle () -> BotParams -> LPServerInfo -> IO LPResponse
+cycleLPProcessing loggerH botParams serverInfo =
     getLongPoll serverInfo
         >>= \lp -> L.hDebug loggerH (show lp)
             -- https://vk.com/dev/bots_longpoll?f=2.2.%20%D0%9E%D1%88%D0%B8%D0%B1%D0%BA%D0%B8
             >> case failed lp of
                 Just 1 -> cycleLPProcessing
                     loggerH
-                    config
+                    botParams
                     serverInfo {ts = fromJust $ (ts :: LPResponse -> Maybe Text) lp}
                 -- 2 and 3
                 Just _ -> initLPProcessing
                     loggerH
-                    config
-                Nothing -> processUpdates loggerH config (fromJust $ updates lp)
-                    >>= \newConfig -> cycleLPProcessing
+                    botParams
+                Nothing -> processUpdates loggerH botParams (fromJust $ updates lp)
+                    >>= \newBotParams -> cycleLPProcessing
                         loggerH
-                        newConfig
+                        newBotParams
                         serverInfo {ts = fromJust $ (ts :: LPResponse -> Maybe Text) lp}
 
-initLPProcessing :: L.Handle () -> Config -> IO LPResponse
-initLPProcessing loggerH config =
+initLPProcessing :: L.Handle () -> BotParams -> IO LPResponse
+initLPProcessing loggerH botParams@(config, _) =
   getLongPollServerInfo config
     >>= \serverInfo -> L.hDebug loggerH (show serverInfo)
-        >> cycleLPProcessing loggerH config serverInfo
+        >> cycleLPProcessing loggerH botParams serverInfo
 
-processConfig :: VkConfig -> Either String Config
+processConfig :: VkConfig -> Either String BotParams
 processConfig (VkConfig token groupId helpMsg repeatMsg echoRepeatNumber) =
-  let isInRange n = n > 0 && n < 6
-   in if not $ isInRange echoRepeatNumber
+    let {
+        isInRange n = n > 0 && n < 6;
+        config = (
+            token
+           , groupId
+           , helpMsg
+           , repeatMsg
+           , pack $ show echoRepeatNumber
+        );
+        numberOfRepeatsMap = M.empty;
+    } in if not $ isInRange echoRepeatNumber
         then Left
-               "Number of message repeats (echoRepeatNumber) must be 1, 2, 3, 4 or 5."
-        else Right
-               ( token
-               , groupId
-               , helpMsg
-               , repeatMsg
-               , pack $ show echoRepeatNumber
-               , M.empty)
+            "Number of message repeats (echoRepeatNumber) must be 1, 2, 3, 4 or 5."
+        else Right (config, numberOfRepeatsMap)
+
 
 startBot :: L.Handle () -> VkConfig -> IO ()
 startBot loggerH parsedConfig =
-  case processConfig parsedConfig of
-    Right config ->
-      L.hInfo loggerH "Vkontakte bot is up and running." >>
-      initLPProcessing loggerH config >>
-      exitSuccess
-    Left errorMessage -> L.hError loggerH errorMessage >> exitFailure
+    case processConfig parsedConfig of
+        Right botParams -> L.hInfo loggerH "Vkontakte bot is up and running."
+            >> initLPProcessing loggerH botParams
+                >> exitSuccess
+        Left errorMessage -> L.hError loggerH errorMessage
+            >> exitFailure
