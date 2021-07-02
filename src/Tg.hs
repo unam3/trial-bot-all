@@ -69,8 +69,8 @@ getNumberOfRepeats "repeat3" = "3"
 getNumberOfRepeats "repeat2" = "2"
 getNumberOfRepeats _ = "1"
 
-processUpdates :: Config -> ResponseJSON -> IO Config
-processUpdates config ioRJSON =
+processUpdates :: BotParams -> ResponseJSON -> IO BotParams
+processUpdates botParams ioRJSON =
   case getLatestSupportedUpdateContent ioRJSON of
     Just (Left (chatID, msg, username, userID)) ->
       let numberOfRepeats' =
@@ -78,55 +78,59 @@ processUpdates config ioRJSON =
               then 1
               else getInt $
                    M.findWithDefault
-                     (numberOfRepeats config)
+                     (defaultNumberOfRepeatsText $ config botParams)
                      userID
-                     (numberOfRepeatsMap config)
+                     (numberOfRepeatsMap botParams)
        in replicateM_
             numberOfRepeats'
-            (respondToMessage config chatID msg username userID) >>
-          return config
+            (respondToMessage botParams chatID msg username userID) >>
+          return botParams
         -- https://core.telegram.org/bots/api#answercallbackquery
     Just (Right callbackQuery) ->
-      void (answerCallbackQuery (tokenSection config) callbackQuery) >>
+      void (answerCallbackQuery (tokenSection $ config botParams) callbackQuery) >>
       let userID = (_id :: User -> UserID) $ _from callbackQuery
           newNumberOfRepeats = getNumberOfRepeats $ _data callbackQuery
           newNumberOfRepeatsMap =
-            M.insert userID newNumberOfRepeats (numberOfRepeatsMap config)
-       in return config {numberOfRepeatsMap = newNumberOfRepeatsMap}
-    _ -> return config
+            M.insert userID newNumberOfRepeats (numberOfRepeatsMap botParams)
+       in return botParams {numberOfRepeatsMap = newNumberOfRepeatsMap}
+    _ -> return botParams
 
-cycleEcho' :: L.Handle () -> Config -> Maybe ResponseJSON -> IO ResponseJSON
-cycleEcho' loggerH config maybeRJSON =
+cycleEcho' :: L.Handle () -> BotParams -> Maybe ResponseJSON -> IO ResponseJSON
+cycleEcho' loggerH botParams maybeRJSON =
   let maybeOffset = maybeRJSON >>= getLatestUpdateId
-   in getUpdates (tokenSection config) maybeOffset >>= \ioRJSON ->
-        L.hDebug loggerH (show ioRJSON) >> processUpdates config ioRJSON >>= \config' ->
-          cycleEcho' loggerH config' $ Just ioRJSON
+   in getUpdates (tokenSection $ config botParams) maybeOffset >>= \ioRJSON ->
+        L.hDebug loggerH (show ioRJSON) >> processUpdates botParams ioRJSON >>= \botParams' ->
+          cycleEcho' loggerH botParams' $ Just ioRJSON
 
-cycleEcho :: L.Handle () -> Config -> IO ResponseJSON
-cycleEcho loggerH config =
+cycleEcho :: L.Handle () -> BotParams -> IO ResponseJSON
+cycleEcho loggerH botParams =
   let noRJSON = Nothing
-   in cycleEcho' loggerH config noRJSON
+   in cycleEcho' loggerH botParams noRJSON
 
-processConfig :: TgConfig -> Either String Config
+processConfig :: TgConfig -> Either String BotParams
 processConfig (TgConfig token helpMsg repeatMsg echoRepeatNumber) =
   let isInRange n = n > 0 && n < 6
    in if not $ isInRange echoRepeatNumber
         then Left
                "Number of message repeats (echoRepeatNumber) must be 1, 2, 3, 4 or 5."
         else Right
-               Config
-                 { tokenSection = append "bot" token
-                 , helpMessage = helpMsg
-                 , repeatMessage = repeatMsg
-                 , numberOfRepeats = pack $ show echoRepeatNumber
+               BotParams
+                 { config =
+                     Config
+                       { tokenSection = append "bot" token
+                       , helpMessage = helpMsg
+                       , repeatMessage = repeatMsg
+                       , defaultNumberOfRepeatsText =
+                           pack $ show echoRepeatNumber
+                       }
                  , numberOfRepeatsMap = M.empty
                  }
 
 startBot :: L.Handle () -> TgConfig -> IO ()
 startBot loggerH parsedConfig =
   case processConfig parsedConfig of
-    Right config ->
+    Right botParams ->
       L.hInfo loggerH "Telegram bot is up and running." >>
-      cycleEcho loggerH config >>
+      cycleEcho loggerH botParams >>
       exitSuccess
     Left errorMessage -> L.hError loggerH errorMessage >> exitFailure

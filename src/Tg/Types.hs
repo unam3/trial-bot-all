@@ -20,6 +20,8 @@ type UserID = Int64
 
 type NumberOfRepeats = Text
 
+type DefaultNumberOfRepeatsText = NumberOfRepeats
+
 type NumberOfRepeatsMap = Map UserID NumberOfRepeats
 
 data Config =
@@ -27,7 +29,13 @@ data Config =
     { tokenSection :: TokenSection
     , helpMessage :: HelpMessage
     , repeatMessage :: RepeatMessage
-    , numberOfRepeats :: NumberOfRepeats
+    , defaultNumberOfRepeatsText :: DefaultNumberOfRepeatsText
+    }
+  deriving (Show, Eq)
+
+data BotParams =
+  BotParams
+    { config :: Config
     , numberOfRepeatsMap :: NumberOfRepeatsMap
     }
   deriving (Show, Eq)
