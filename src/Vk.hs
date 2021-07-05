@@ -8,7 +8,7 @@ module Vk
 import Control.Monad (replicateM_)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust)
 import Data.Text (Text, pack)
 import Data.Text.Read (decimal)
 import Data.Time.Clock.System (getSystemTime)
@@ -46,29 +46,31 @@ processUpdates loggerH botParams@(config, numberOfRepeatsMap) updates' =
       msgText = text msg
       isMsgHasNoText = msgText == ""
       maybeNewEchoRepeatNumberText = payload msg
-      newNumberOfRepeatsMap =
-        M.insert
-          (from_id msg)
-          (fromJust maybeNewEchoRepeatNumberText)
-          numberOfRepeatsMap
       echoRepeatNumber =
         getInt $
         M.findWithDefault
           defaultNumberOfRepeatsText
           (from_id msg)
           numberOfRepeatsMap
-      newBotParams = (config, newNumberOfRepeatsMap)
    in if null newMessages || isMsgHasNoText
         then return botParams
-        else if isJust maybeNewEchoRepeatNumberText
-               then return newBotParams
-               else responseToText
-                      loggerH
-                      botParams
-                      latestMessage
-                      echoRepeatNumber
-                      msgText >>
-                    return botParams
+        else case maybeNewEchoRepeatNumberText of
+               Just newEchoRepeatNumberText ->
+                 let newNumberOfRepeatsMap =
+                       M.insert
+                         (from_id msg)
+                         newEchoRepeatNumberText
+                         numberOfRepeatsMap
+                     newBotParams = (config, newNumberOfRepeatsMap)
+                  in return newBotParams
+               _ ->
+                 responseToText
+                   loggerH
+                   botParams
+                   latestMessage
+                   echoRepeatNumber
+                   msgText >>
+                 return botParams
 
 cycleLPProcessing :: L.Handle () -> BotParams -> LPServerInfo -> IO LPResponse
 cycleLPProcessing loggerH botParams serverInfo =
