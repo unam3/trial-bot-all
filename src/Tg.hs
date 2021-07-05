@@ -11,7 +11,7 @@ module Tg
 import Control.Monad (replicateM_, void)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (isJust)
 import Data.Text (Text, append, pack)
 import Data.Text.Read (decimal)
 import Prelude hiding (id)
@@ -36,18 +36,23 @@ getInt = fst . fromRight (1, "1") . decimal
 type MaybeUpdateContent
    = Maybe (Either (ChatID, Text, Username, UserID) CallbackQuery)
 
+makeMaybeUpdateContent :: Maybe Message -> Maybe Text-> Maybe User -> Maybe Username -> MaybeUpdateContent
+makeMaybeUpdateContent (Just message') (Just text') (Just user') (Just username') =
+    let chatID = id $ (chat :: Message -> Chat) message'
+        userID = (_id :: User -> UserID) user'
+    in Just $ Left (chatID, text', username', userID)
+makeMaybeUpdateContent _ _ _ _ = Nothing
+
 getLatestSupportedUpdateContent' :: [Update] -> MaybeUpdateContent
 getLatestSupportedUpdateContent' (update:updateList) =
   let maybeMessage = message update
-      chatID = id . (chat :: Message -> Chat) $ fromJust maybeMessage
       maybeText = maybeMessage >>= (text :: Message -> Maybe Text)
       maybeUser = maybeMessage >>= from
       maybeUsername = maybeUser >>= _username
-      userID = (_id :: User -> UserID) $ fromJust maybeUser
+      maybeUpdateContent = makeMaybeUpdateContent maybeMessage maybeText maybeUser maybeUsername
       maybeCallbackQuery = callback_query update
-   in if isJust maybeText && isJust maybeUsername
-        then Just $
-             Left (chatID, fromJust maybeText, fromJust maybeUsername, userID)
+   in if isJust maybeUpdateContent
+        then maybeUpdateContent
         else maybe
                (getLatestSupportedUpdateContent' updateList)
                (Just . Right)

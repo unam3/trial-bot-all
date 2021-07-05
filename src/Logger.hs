@@ -4,7 +4,6 @@ module Logger
   , withLogger
   ) where
 
-import Prelude hiding (init)
 import System.Log.Logger (Priority)
 
 data Config a =
