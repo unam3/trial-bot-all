@@ -8,7 +8,6 @@ module Vk
 import Control.Monad (replicateM_)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromJust)
 import Data.Text (Text, pack)
 import Data.Text.Read (decimal)
 import Data.Time.Clock.System (getSystemTime)
@@ -76,22 +75,23 @@ processUpdates loggerH botParams@(config, numberOfRepeatsMap) updates' =
 cycleLPProcessing :: L.Handle () -> BotParams -> LPServerInfo -> IO LPResponse
 cycleLPProcessing loggerH botParams serverInfo =
     getLongPoll serverInfo
-        >>= \lp -> L.hDebug loggerH (show lp)
-            -- https://vk.com/dev/bots_longpoll?f=2.2.%20%D0%9E%D1%88%D0%B8%D0%B1%D0%BA%D0%B8
-            >> case failed lp of
-                Just 1 -> cycleLPProcessing
-                    loggerH
-                    botParams
-                    serverInfo {ts = fromJust $ (ts :: LPResponse -> Maybe Text) lp}
-                -- 2 and 3
-                Just _ -> initLPProcessing
-                    loggerH
-                    botParams
-                Nothing -> processUpdates loggerH botParams (fromJust $ updates lp)
+        >>= \lpr -> L.hDebug loggerH (show lpr)
+            >> case lpr of
+                LPRSuccess ts' updates' -> processUpdates loggerH botParams updates'
                     >>= \newBotParams -> cycleLPProcessing
                         loggerH
                         newBotParams
-                        serverInfo {ts = fromJust $ (ts :: LPResponse -> Maybe Text) lp}
+                        serverInfo {ts = ts'}
+                -- https://vk.com/dev/bots_longpoll?f=2.2.%20%D0%9E%D1%88%D0%B8%D0%B1%D0%BA%D0%B8
+                -- failed 1
+                LPRFailureWithTS ts' -> cycleLPProcessing
+                    loggerH
+                    botParams
+                    serverInfo {ts = ts'}
+                -- failed 2 and 3
+                LPRFailure -> initLPProcessing
+                    loggerH
+                    botParams
 
 initLPProcessing :: L.Handle () -> BotParams -> IO LPResponse
 initLPProcessing loggerH botParams@(config, _) =
