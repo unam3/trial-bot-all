@@ -1,16 +1,20 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Vk.Requests.JSON where
 
 import Data.Aeson
   ( FromJSON(parseJSON)
   , ToJSON(toJSON)
+  , (.:)
   , defaultOptions
   , fieldLabelModifier
   , genericParseJSON
   , genericToJSON
+  , withObject
   )
+import Data.Foldable (asum)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
@@ -68,15 +72,26 @@ instance FromJSON Update where
   parseJSON =
     genericParseJSON defaultOptions {fieldLabelModifier = Prelude.drop 1}
 
-data LPResponse =
-  LPResponse
-    { ts :: Maybe Text
-    , updates :: Maybe [Update]
-    , failed :: Maybe Int
-    }
+data LPResponse
+  = LPRSuccess
+      { ts :: Text
+      , updates :: [Update]
+      }
+  | LPRFailureWithTS
+      { ts :: Text
+      }
+  | LPRFailure
   deriving (Show, Generic)
 
-instance FromJSON LPResponse
+-- https://artyom.me/aeson#types-with-many-constructors
+instance FromJSON LPResponse where
+  parseJSON =
+    withObject "successful long poll response or failure" $ \o ->
+      asum
+        [ LPRSuccess <$> o .: "ts" <*> o .: "updates"
+        , LPRFailureWithTS <$> o .: "ts"
+        , pure LPRFailure
+        ]
 
 newtype SendMessageResponse =
   SendMessageResponse
