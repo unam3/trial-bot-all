@@ -8,12 +8,15 @@ module Tg
   , startBot
   ) where
 
+import Control.Concurrent (threadDelay)
+import Control.Exception (throwIO, try)
 import Control.Monad (replicateM_, void)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as M
 import Data.Maybe (isJust)
 import Data.Text (Text, append, pack)
 import Data.Text.Read (decimal)
+import Network.HTTP.Req (HttpException(VanillaHttpException))
 import Prelude hiding (id)
 import System.Exit (exitFailure, exitSuccess)
 
@@ -118,6 +121,20 @@ cycleEcho loggerH botParams =
   let noRJSON = Nothing
    in cycleEcho' loggerH botParams noRJSON
 
+guardedCycleEcho :: L.Handle () -> BotParams -> IO ResponseJSON
+guardedCycleEcho loggerH botParams = do
+  eitherReqError <- try (cycleEcho loggerH botParams)
+  case eitherReqError of
+    Left (VanillaHttpException e) ->
+      L.hError
+        loggerH
+        "Seems like network is down. Trying another request in 2 seconds." >>
+      L.hDebug loggerH (show e) >>
+      threadDelay 2000000 >>
+      guardedCycleEcho loggerH botParams
+    Left jsonHttpException -> throwIO jsonHttpException
+    Right _ -> exitSuccess
+
 processConfig :: TgConfig -> Either String BotParams
 processConfig (TgConfig token helpMsg repeatMsg echoRepeatNumber) =
   let isInRange n = n > 0 && n < 6
@@ -142,6 +159,5 @@ startBot loggerH parsedConfig =
   case processConfig parsedConfig of
     Right botParams ->
       L.hInfo loggerH "Telegram bot is up and running." >>
-      cycleEcho loggerH botParams >>
-      exitSuccess
+      void (guardedCycleEcho loggerH botParams)
     Left errorMessage -> L.hError loggerH errorMessage >> exitFailure
