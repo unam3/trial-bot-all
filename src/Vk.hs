@@ -5,12 +5,15 @@ module Vk
   ( startBot
   ) where
 
+import Control.Concurrent (threadDelay)
+import Control.Exception (throwIO, try)
 import Control.Monad (replicateM_)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as M
 import Data.Text (Text, pack)
 import Data.Text.Read (decimal)
 import Data.Time.Clock.System (getSystemTime)
+import Network.HTTP.Req (HttpException(VanillaHttpException))
 import Prelude hiding (drop, id)
 import System.Exit (exitFailure, exitSuccess)
 
@@ -92,6 +95,20 @@ initLPProcessing loggerH botParams@(config, _) =
     L.hDebug loggerH (show serverInfo) >>
     cycleLPProcessing loggerH botParams serverInfo
 
+guardedInitLPProcessing :: L.Handle () -> BotParams -> IO LPResponse
+guardedInitLPProcessing loggerH botParams = do
+  eitherReqError <- try (initLPProcessing loggerH botParams)
+  case eitherReqError of
+    Left (VanillaHttpException e) ->
+      L.hError
+        loggerH
+        "Seems like network is down. Trying another request in 2 seconds." >>
+      L.hDebug loggerH (show e) >>
+      threadDelay 2000000 >>
+      guardedInitLPProcessing loggerH botParams
+    Left jsonHttpException -> throwIO jsonHttpException
+    Right _ -> exitSuccess
+
 processConfig :: VkConfig -> Either String BotParams
 processConfig (VkConfig token groupId helpMsg repeatMsg echoRepeatNumber) =
   let isInRange n = n > 0 && n < 6
@@ -108,6 +125,6 @@ startBot loggerH parsedConfig =
   case processConfig parsedConfig of
     Right botParams ->
       L.hInfo loggerH "Vkontakte bot is up and running." >>
-      initLPProcessing loggerH botParams >>
+      guardedInitLPProcessing loggerH botParams >>
       exitSuccess
     Left errorMessage -> L.hError loggerH errorMessage >> exitFailure
