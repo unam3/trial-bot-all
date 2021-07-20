@@ -3,7 +3,7 @@
 
 module Tg
   ( getInt
-  , getLatestSupportedUpdateContent
+  , getSupportedUpdatesContent
   , processConfig
   , startBot
   ) where
@@ -36,6 +36,7 @@ getLatestUpdateId rjson =
 getInt :: Text -> Int
 getInt = fst . fromRight (1, "1") . decimal
 
+-- -> EitherUdateContent
 type MaybeUpdateContent
    = Maybe (Either (ChatID, Text, Username, UserID) CallbackQuery)
 
@@ -46,8 +47,8 @@ makeMaybeUpdateContent (Just message') (Just text') (Just user') (Just username'
     in Just $ Left (chatID, text', username', userID)
 makeMaybeUpdateContent _ _ _ _ = Nothing
 
-getLatestSupportedUpdateContent' :: [Update] -> MaybeUpdateContent
-getLatestSupportedUpdateContent' (update:updateList) =
+getSupportedUpdatesContent :: [Update] -> [MaybeUpdateContent]
+getSupportedUpdatesContent (update:updateList) =
   let maybeMessage = message update
       maybeText = maybeMessage >>= (text :: Message -> Maybe Text)
       maybeUser = maybeMessage >>= from
@@ -55,17 +56,11 @@ getLatestSupportedUpdateContent' (update:updateList) =
       maybeUpdateContent = makeMaybeUpdateContent maybeMessage maybeText maybeUser maybeUsername
       maybeCallbackQuery = callback_query update
    in if isJust maybeUpdateContent
-        then maybeUpdateContent
-        else maybe
-               (getLatestSupportedUpdateContent' updateList)
-               (Just . Right)
-               maybeCallbackQuery
-getLatestSupportedUpdateContent' [] = Nothing
-
-getLatestSupportedUpdateContent :: ResponseJSON -> MaybeUpdateContent
-getLatestSupportedUpdateContent rjson =
-  let updates = result rjson
-   in getLatestSupportedUpdateContent' $ reverse updates
+        then maybeUpdateContent : getSupportedUpdatesContent updateList
+        else if isJust maybeCallbackQuery
+            then fmap Right maybeCallbackQuery : getSupportedUpdatesContent updateList
+            else getSupportedUpdatesContent updateList
+getSupportedUpdatesContent [] = []
 
 isHelpCommand :: Text -> Bool
 isHelpCommand = (== "/help")
@@ -77,9 +72,11 @@ getNumberOfRepeats "repeat3" = "3"
 getNumberOfRepeats "repeat2" = "2"
 getNumberOfRepeats _ = "1"
 
-processUpdates :: BotParams -> ResponseJSON -> IO BotParams
-processUpdates botParams ioRJSON =
-  case getLatestSupportedUpdateContent ioRJSON of
+processUpdates :: IO BotParams -> MaybeUpdateContent -> IO BotParams
+processUpdates ioBotParams maybeUpdateContent =
+  do
+  botParams <- ioBotParams
+  case maybeUpdateContent of
     Just (Left (chatID, msg, username, userID)) ->
       let numberOfRepeats' =
             if isRepeatCommand msg || isHelpCommand msg
@@ -103,11 +100,17 @@ processUpdates botParams ioRJSON =
        in return botParams {numberOfRepeatsMap = newNumberOfRepeatsMap}
     _ -> return botParams
 
+processResponse :: BotParams -> ResponseJSON -> IO BotParams
+processResponse botParams rjson =
+    let updates = result rjson
+        supportedUpdatesContent = getSupportedUpdatesContent updates
+    in foldl processUpdates (pure botParams) supportedUpdatesContent
+
 cycleEcho' :: L.Handle () -> BotParams -> Maybe ResponseJSON -> IO ResponseJSON
 cycleEcho' loggerH botParams maybeRJSON =
   let maybeOffset = maybeRJSON >>= getLatestUpdateId
    in getUpdates (tokenSection $ config botParams) maybeOffset >>= \ioRJSON ->
-        L.hDebug loggerH (show ioRJSON) >> processUpdates botParams ioRJSON >>= \botParams' ->
+        L.hDebug loggerH (show ioRJSON) >> processResponse botParams ioRJSON >>= \botParams' ->
           cycleEcho' loggerH botParams' $ Just ioRJSON
 
 cycleEcho :: L.Handle () -> BotParams -> IO ResponseJSON

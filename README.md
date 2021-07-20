@@ -22,8 +22,6 @@ Use control and "c" keys to stop the bot.
 
 ## Known limitations
 
-[Tg] Only latest text message (from [updates](https://core.telegram.org/bots/api#getting-updates)) will be processed.
-
 [Vk] Only messages that was received when bot is up and running will be processed.
 
 [Vk] Keyboard in the answer to `/repeat` command will be accessible to all chat participants (VK limitation) and will be applied for the first one who use it.
