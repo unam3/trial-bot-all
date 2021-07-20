@@ -36,7 +36,6 @@ getLatestUpdateId rjson =
 getInt :: Text -> Int
 getInt = fst . fromRight (1, "1") . decimal
 
--- -> EitherUdateContent
 type MaybeUpdateContent
    = Maybe (Either (ChatID, Text, Username, UserID) CallbackQuery)
 
