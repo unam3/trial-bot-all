@@ -10,7 +10,7 @@ import Control.Exception (throwIO, try)
 import Control.Monad (replicateM_)
 import Data.Either (fromRight)
 import qualified Data.Map.Strict as M
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import Data.Text.Read (decimal)
 import Data.Time.Clock.System (getSystemTime)
 import Network.HTTP.Req (HttpException(VanillaHttpException))
@@ -35,45 +35,69 @@ sendAndLog loggerH botParams update =
     >>= sendMessage botParams update
         >>= L.hDebug loggerH . show
 
-responseToText :: L.Handle () -> BotParams -> Update -> Int -> Text -> IO ()
-responseToText loggerH botParams update echoRepeatNumber msgText =
+responseToText :: L.Handle () -> BotParams -> Update -> Text -> Int -> IO ()
+responseToText loggerH botParams update msgText echoRepeatNumber =
   if isMsgTextHelpCommand msgText || isMsgTextRepeatCommand msgText
     then sendAndLog loggerH botParams update
     else replicateM_ echoRepeatNumber $ sendAndLog loggerH botParams update
 
-processUpdates :: L.Handle () -> BotParams -> [Update] -> IO BotParams
-processUpdates loggerH botParams@(config, numberOfRepeatsMap) updates' =
-  let (_, _, _, _, defaultNumberOfRepeatsText) = config
-      newMessages = filter isMessageNew updates'
-      latestMessage = last newMessages
-      msg = getMessage latestMessage
-      msgText = text msg
-      isMsgHasNoText = msgText == ""
-      maybeNewEchoRepeatNumberText = payload msg
-      echoRepeatNumber =
-        getInt $
-        M.findWithDefault defaultNumberOfRepeatsText (from_id msg) numberOfRepeatsMap
-   in if null newMessages || isMsgHasNoText
+
+processNewMessageUpdateWithText ::
+    L.Handle ()
+    -> (Config, NumberOfRepeatsMap)
+    -> (Int -> IO ())
+    -> PrivateMessage
+    -> IO (Config, M.Map FromId Text)
+processNewMessageUpdateWithText loggerH botParams@(config, numberOfRepeatsMap) responseToText' msg = 
+    let maybeNewEchoRepeatNumberText = payload msg
+        (_, _, _, _, defaultNumberOfRepeatsText) = config
+    in case maybeNewEchoRepeatNumberText of
+        Just newEchoRepeatNumberText ->
+            let newNumberOfRepeatsMap =
+                    M.insert
+                      (from_id msg)
+                      newEchoRepeatNumberText
+                      numberOfRepeatsMap
+                newBotParams =
+                  ( config
+                  , newNumberOfRepeatsMap)
+            in L.hDebug loggerH ("echoRepeatNumber is set to " ++ unpack newEchoRepeatNumberText)
+                >> return newBotParams
+        _ -> let echoRepeatNumber = getInt
+                    $ M.findWithDefault defaultNumberOfRepeatsText (from_id msg) numberOfRepeatsMap
+            in responseToText' echoRepeatNumber
+                >> return botParams
+
+
+processNewMessageUpdate ::
+    L.Handle ()
+    -> (Config, NumberOfRepeatsMap)
+    -> Update
+    -> PrivateMessage
+    -> IO (Config, NumberOfRepeatsMap)
+processNewMessageUpdate loggerH botParams latestUpdateWithNewMessage msg = 
+    let msgText = text msg
+        isMsgHasNoText = msgText == ""
+        responseToText' =
+            responseToText
+              loggerH
+              botParams
+              latestUpdateWithNewMessage
+              msgText
+    in if isMsgHasNoText 
         then return botParams
-        else case maybeNewEchoRepeatNumberText of
-            Just newEchoRepeatNumberText ->
-                let newNumberOfRepeatsMap =
-                        M.insert
-                          (from_id msg)
-                          newEchoRepeatNumberText
-                          numberOfRepeatsMap
-                    newBotParams =
-                      ( config
-                      , newNumberOfRepeatsMap)
-                in 
-               return newBotParams
-            _ -> responseToText
-                  loggerH
-                  botParams
-                  latestMessage
-                  echoRepeatNumber
-                  msgText >>
-                return botParams
+        else processNewMessageUpdateWithText loggerH botParams responseToText' msg
+
+
+processUpdates :: L.Handle () -> BotParams -> [Update] -> IO BotParams
+processUpdates loggerH botParams updates' =
+  let updatesWithNewMessage = filter isMessageNew updates'
+      latestUpdateWithNewMessage = last updatesWithNewMessage
+      msg = getMessage latestUpdateWithNewMessage
+   in if null updatesWithNewMessage
+        then return botParams
+        else processNewMessageUpdate loggerH botParams latestUpdateWithNewMessage msg
+
 
 cycleLPProcessing :: L.Handle () -> BotParams -> LPServerInfo -> IO LPResponse
 cycleLPProcessing loggerH botParams serverInfo =
