@@ -64,12 +64,31 @@ getSupportedUpdatesContent [] = []
 isHelpCommand :: Text -> Bool
 isHelpCommand = (== "/help")
 
-getNumberOfRepeats :: Text -> Text
-getNumberOfRepeats "repeat5" = "5"
-getNumberOfRepeats "repeat4" = "4"
-getNumberOfRepeats "repeat3" = "3"
-getNumberOfRepeats "repeat2" = "2"
-getNumberOfRepeats _ = "1"
+extractNumberOfRepeats :: Text -> Text
+extractNumberOfRepeats "repeat5" = "5"
+extractNumberOfRepeats "repeat4" = "4"
+extractNumberOfRepeats "repeat3" = "3"
+extractNumberOfRepeats "repeat2" = "2"
+extractNumberOfRepeats _ = "1"
+
+
+getNumberOfRepeats :: Text -> BotParams -> UserID -> Int
+getNumberOfRepeats msg botParams userID = 
+    if isRepeatCommand msg || isHelpCommand msg
+      then 1
+      else getInt $
+           M.findWithDefault
+             (defaultNumberOfRepeatsText $ config botParams)
+             userID
+             (numberOfRepeatsMap botParams)
+
+
+updateNumberOfRepeatsMap :: CallbackQuery -> BotParams -> NumberOfRepeatsMap
+updateNumberOfRepeatsMap callbackQuery botParams =
+    let userID = (_id :: User -> UserID) $ _from callbackQuery
+        newNumberOfRepeats = extractNumberOfRepeats $ _data callbackQuery
+    in M.insert userID newNumberOfRepeats (numberOfRepeatsMap botParams)
+
 
 processUpdates :: IO BotParams -> MaybeUpdateContent -> IO BotParams
 processUpdates ioBotParams maybeUpdateContent =
@@ -77,14 +96,7 @@ processUpdates ioBotParams maybeUpdateContent =
   botParams <- ioBotParams
   case maybeUpdateContent of
     Just (Left (chatID, msg, username, userID)) ->
-      let numberOfRepeats' =
-            if isRepeatCommand msg || isHelpCommand msg
-              then 1
-              else getInt $
-                   M.findWithDefault
-                     (defaultNumberOfRepeatsText $ config botParams)
-                     userID
-                     (numberOfRepeatsMap botParams)
+      let numberOfRepeats' = getNumberOfRepeats msg botParams userID
        in replicateM_
             numberOfRepeats'
             (respondToMessage botParams chatID msg username userID) >>
@@ -92,11 +104,7 @@ processUpdates ioBotParams maybeUpdateContent =
         -- https://core.telegram.org/bots/api#answercallbackquery
     Just (Right callbackQuery) ->
       void (answerCallbackQuery (tokenSection $ config botParams) callbackQuery) >>
-      let userID = (_id :: User -> UserID) $ _from callbackQuery
-          newNumberOfRepeats = getNumberOfRepeats $ _data callbackQuery
-          newNumberOfRepeatsMap =
-            M.insert userID newNumberOfRepeats (numberOfRepeatsMap botParams)
-       in return botParams {numberOfRepeatsMap = newNumberOfRepeatsMap}
+       return botParams {numberOfRepeatsMap = updateNumberOfRepeatsMap callbackQuery botParams}
     _ -> return botParams
 
 processResponse :: BotParams -> ResponseJSON -> IO BotParams
